@@ -30,8 +30,8 @@ def parse_arguments():
     parser.add_argument('--ema_decay', type=float, default=0.995, help='Exponential moving average decay')
     parser.add_argument('--amp', type=bool, default=False, help='Use mixed precision')
     parser.add_argument('--dataset', type=str, default='movingmnist', help='Dataset name')
-    parser.add_argument('--folder', type=str, default='/groups/gcb50389/yuta.oshima/video_datasets/mnist_test_seq.npy', help='Data folder')
-    parser.add_argument('--results_folder', type=str, default='/groups/gcb50389/yuta.oshima/s5_diffusion_results/results', help='Results folder')
+    parser.add_argument('--folder', type=str, help='Data folder')
+    parser.add_argument('--results_folder', type=str, help='Results folder')
     parser.add_argument('--device_ids', nargs='+', type=int, default=[0, 1, 2], help='List of GPU IDs')
     parser.add_argument('--seed', type=int, default=0, help='Random seed')
     # parser.add_argument('--csv_path', type=str, default="/home/acd13972py/Video-LLaMA/video_captions.csv", help='CSV path')
@@ -44,8 +44,7 @@ def main(args):
     torch.manual_seed(args.seed)
     
     wandb_run = wandb.init(
-        project='icml_s5_diffusion', 
-        entity="shim0114", 
+        project='ssm_vdm_sampling', 
         config=vars(args))
 
     model = Unet3D(

@@ -47,8 +47,8 @@ def parse_arguments():
     parser.add_argument('--ema_decay', type=float, default=0.995, help='Exponential moving average decay')
     parser.add_argument('--amp', type=bool, default=False, help='Use mixed precision')
     parser.add_argument('--dataset', type=str, default='movingmnist', help='Dataset name')
-    parser.add_argument('--folder', type=str, default='/groups/gcb50389/yuta.oshima/video_datasets/mnist_test_seq.npy', help='Data folder')
-    parser.add_argument('--results_folder', type=str, default='/groups/gcb50389/yuta.oshima/s5_diffusion_results/results', help='Results folder')
+    parser.add_argument('--folder', type=str, help='Data folder')
+    parser.add_argument('--results_folder', type=str, help='Results folder')
     parser.add_argument('--num_samples', type=int, default=100, help='Number of samples')
     parser.add_argument('--sample_batch_size', type=int, default=16, help='Sampling batch size')
     parser.add_argument('--sample_save_every', type=int, default=100, help='Sample save frequency')
@@ -102,8 +102,7 @@ def main(args):
     torch.manual_seed(args.seed)
     
     wandb_run = wandb.init(
-        project='icml_s5_diffusion_evalation', 
-        entity="shim0114", 
+        project='ssm_vdm_sampling', 
         config=vars(args))
     
     if args.dataset == 'ucf101-all':
