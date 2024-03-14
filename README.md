@@ -1,4 +1,4 @@
-# SSM-Meets-Video-Diffusion-Models
+# SSM-Meets-Video-Diffusion-Models (WIP)
 
 [Paper](https://arxiv.org/abs/2403.07711)
 
