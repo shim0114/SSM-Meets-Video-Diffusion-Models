@@ -19,12 +19,12 @@ Please use `./Dockerfile` to build docker image or install python libraries spec
 
 ## Run Experimental Codes
 
-## Downloading Datasets
-### UCF101
+### Downloading Datasets
+#### UCF101
 1. Please follow the commands shown in `./dl_ucf101.ipynb` to download datasets.
 2.  Specify `ucf101-all` as `--dataset`, and `.` as `--folder`.
 
-### MineRL Navigate
+#### MineRL Navigate
 1. Execute a following python code.
 ```
 python dl_mine_rl.py
