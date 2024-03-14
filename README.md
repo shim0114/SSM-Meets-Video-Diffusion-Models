@@ -1,5 +1,10 @@
 # SSM-Meets-Video-Diffusion-Models
 
+[Paper](https://arxiv.org/abs/2403.07711)
+
+![Image1](images/img1.png)
+
+
 ## Device Details
 | Dataset          | UCF101         | UCF101         | MineRL         | MineRL         |
 |------------------|----------------|----------------|----------------|----------------|
