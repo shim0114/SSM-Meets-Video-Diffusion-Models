@@ -2,7 +2,7 @@
 
 [Paper](https://arxiv.org/abs/2403.07711)
 
-![Image1](images/icml_figure1.pdf)
+![Image1](images/figure1.png)
 
 
 ## Device Details
