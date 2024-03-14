@@ -10,6 +10,7 @@
 |------------------|----------------|----------------|----------------|----------------|
 | **# of Frames**  | 16             | 16             | 64             | 150            |
 | **Resolution**   | $32 \times 32$ | $64 \times 64$ | $32 \times 32$ | $32 \times 32$ |
+| **Training steps** | 92k | 106k | 174k | 129k |
 | **GPUs** | V100 $\times 4$ | A100 $\times 8$ | V100 $\times 4$ | V100 $\times 4$ |
 | **Training Time** | 72 hours | 120 hours | 72 hours | 72 hours |
 
