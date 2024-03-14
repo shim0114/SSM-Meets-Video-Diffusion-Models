@@ -1,25 +1,10 @@
 # SSM-Meets-Video-Diffusion-Models
 
-## Training Details
+## Device Details
 | Dataset          | UCF101         | UCF101         | MineRL         | MineRL         |
 |------------------|----------------|----------------|----------------|----------------|
 | **# of Frames**  | 16             | 16             | 64             | 150            |
 | **Resolution**   | $32 \times 32$ | $64 \times 64$ | $32 \times 32$ | $32 \times 32$ |
-| **Base channel size** | 64       | 64             | 64             | 64             |
-| **Channel multipliers** | 1, 2, 4, 8 | 1, 2, 4, 8 | 1, 2, 4, 8 | 1, 2, 4, 8 |
-| **Time embedding dimension** | 1024 | 1024 | 1024 | 1024 |
-| **Time embedding linears** | 2 | 2 | 2 | 2 |
-| **# of attention heads (for attentions)** | 8 | 8 | 8 | 8 |
-| **Dims of attention (for attentions)** | 64 | 64 | 64 | 64 |
-| **SSM hidden dims (for SSMs)** | 512 | 512 | 512 | 512 |
-| **MLP hidden dims (for SSMs)** | 512 | 512 | 512 | 512 |
-| **Denoising timesteps (T)** | 256 | 1000 | 256 | 256 |
-| **Loss type** | L2 loss of \( \epsilon \) | L2 loss of \( \epsilon \) | L2 loss of \( \epsilon \) | L2 loss of \( \epsilon \) |
-| **Training steps** | 92k | 106k | 174k | 129k |
-| **Optimizer** | Adam | Adam | Adam | Adam |
-| **Training learning rate** | 0.0003 | 0.0001 | 0.0003 | 0.0003 |
-| **Train batch size** | 32 | 32 | 8 | 8 |
-| **EMA decay** | 0.995 | 0.995 | 0.995 | 0.995 |
 | **GPUs** | V100 $\times 4$ | A100 $\times 8$ | V100 $\times 4$ | V100 $\times 4$ |
 | **Training Time** | 72 hours | 120 hours | 72 hours | 72 hours |
 
