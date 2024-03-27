@@ -1,6 +1,6 @@
-# SSM Meets Video Diffusion Models: Efficient Video Generation with Structured State Spaces
+# SSM-Meets-Video-Diffusion-Models
 
-[[Paper]](https://arxiv.org/abs/2403.07711)
+"SSM Meets Video Diffusion Models: Efficient Video Generation with Structured State Spaces" [[Paper]](https://arxiv.org/abs/2403.07711)
 
 ![Image1](images/figure1.png)
 
