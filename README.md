@@ -1,6 +1,6 @@
 # SSM Meets Video Diffusion Models (WIP)
 
-["SSM Meets Video Diffusion Models: Efficient Video Generation with Structured State Spaces"[Paper]](https://arxiv.org/abs/2403.07711)
+["SSM Meets Video Diffusion Models: Efficient Video Generation with Structured State Spaces" [Paper]](https://arxiv.org/abs/2403.07711)
 
 ![Image1](images/figure1.png)
 
@@ -69,3 +69,14 @@ python eval_video-diffusion.py
 # --seed 0 --sample_seeds 0 1 2 3 --eval_batch_size 100 # Evaluation Settings
 ```
 
+## Citation
+
+```bibtex
+@misc{ssmvdm2024,
+      title={SSM Meets Video Diffusion Models: Efficient Video Generation with Structured State Spaces}, 
+      author={Yuta Oshima and Shohei Taniguchi and Masahiro Suzuki and Yutaka Matsuo},
+      year={2024},
+      eprint={2403.07711},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
