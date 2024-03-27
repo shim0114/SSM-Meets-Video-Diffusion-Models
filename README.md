@@ -1,6 +1,6 @@
-# SSM-Meets-Video-Diffusion-Models (WIP)
+# SSM Meets Video Diffusion Models (WIP)
 
-[Paper](https://arxiv.org/abs/2403.07711)
+["SSM Meets Video Diffusion Models: Efficient Video Generation with Structured State Spaces"[Paper]](https://arxiv.org/abs/2403.07711)
 
 ![Image1](images/figure1.png)
 
@@ -68,3 +68,4 @@ python eval_video-diffusion.py
 --milestone 92                                                   
 # --seed 0 --sample_seeds 0 1 2 3 --eval_batch_size 100 # Evaluation Settings
 ```
+
