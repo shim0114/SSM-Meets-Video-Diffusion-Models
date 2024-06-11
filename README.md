@@ -36,7 +36,7 @@ python dl_mine_rl.py
 python train_video-diffusion.py 
 --timesteps 256 --loss_type 'l2' --train_lr 0.0003 --train_num_steps 700000 --train_batch_size 16 --gradient_accumulate_every 2 --ema_decay 0.995 # Learning Settings
 --base_channel_size 64 --timeemb_linears 2 # Architecture Settings
---temporal_layer 'bi-s4d' --s4d_version 16 # Temporal Layer Settings
+--temporal_layer 'bi-s4d' --s4d_version 8 # Temporal Layer Settings
 --image_size 32 --dataset 'ucf101-all' # Dataset Settings
 --folder 'path/to/datasets' 
 --results_folder 'path/to/save' 
@@ -47,7 +47,7 @@ python train_video-diffusion.py
 python sample_video-diffusion.py 
 --timesteps 256 --loss_type 'l2' --train_lr 0.0003 --train_num_steps 700000 --train_batch_size 16 --gradient_accumulate_every 2 --ema_decay 0.995 # Learning Settings
 --base_channel_size 64 --timeemb_linears 2 # Architecture Settings
---temporal_layer 'bi-s4d' --s4d_version 16 # Temporal Layer Settings
+--temporal_layer 'bi-s4d' --s4d_version 8 # Temporal Layer Settings
 --image_size 32 --dataset 'ucf101-all' # Dataset Settings
 --folder 'path/to/datasets' 
 --results_folder 'path/to/save'
@@ -60,7 +60,7 @@ python sample_video-diffusion.py
 python eval_video-diffusion.py 
 --timesteps 256 --loss_type 'l2' --train_lr 0.0003 --train_num_steps 700000 --train_batch_size 16 --gradient_accumulate_every 2 --ema_decay 0.995 # Learning Settings
 --base_channel_size 64 --timeemb_linears 2 # Architecture Settings
---temporal_layer 'bi-s4d' --s4d_version 16 # Temporal Layer Settings
+--temporal_layer 'bi-s4d' --s4d_version 8 # Temporal Layer Settings
 --image_size 32 --dataset 'ucf101-all' # Dataset Settings
 --folder 'path/to/datasets' 
 --results_folder 'path/to/save'
