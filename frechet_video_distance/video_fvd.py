@@ -20,6 +20,11 @@ def compute_their_fvd(videos_fake: np.ndarray, videos_real: np.ndarray) -> float
     with tf.Graph().as_default():
         videos_fake = tf.convert_to_tensor(videos_fake, np.float32)
         videos_real = tf.convert_to_tensor(videos_real, np.float32)
+        
+        if __name__ == "__main__":
+            print('videos_fake', their_fvd.create_id3_embedding(videos_fake).shape)
+            import sys
+            sys.exit()
 
         result = their_fvd.calculate_fvd(
             their_fvd.create_id3_embedding(videos_fake),
@@ -43,6 +48,9 @@ def compute_our_fvd(videos_fake: np.ndarray, videos_real: np.ndarray, device: st
 
     videos_fake = torch.from_numpy(videos_fake).permute(0, 4, 1, 2, 3).to(device)
     videos_real = torch.from_numpy(videos_real).permute(0, 4, 1, 2, 3).to(device)
+    
+    if __name__ == "__main__":
+        print('videos_fake', detector(videos_fake, **detector_kwargs).shape)
 
     feats_fake = detector(videos_fake, **detector_kwargs).cpu().numpy()
     feats_real = detector(videos_real, **detector_kwargs).cpu().numpy()
@@ -54,7 +62,7 @@ def main():
     seed_fake = 1
     seed_real = 2
     num_videos = 8
-    video_len = 150
+    video_len = 200
 
     videos_fake = np.random.RandomState(seed_fake).rand(num_videos+2, video_len, 224, 224, 3).astype(np.float32)
     videos_real = np.random.RandomState(seed_real).rand(num_videos, video_len, 224, 224, 3).astype(np.float32)

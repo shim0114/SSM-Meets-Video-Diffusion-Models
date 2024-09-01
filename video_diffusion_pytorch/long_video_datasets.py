@@ -185,12 +185,13 @@ class BaseDataset(Dataset):
 
 
 class CarlaDataset(BaseDataset):
-    def __init__(self, train, path, shard, num_shards, T):
+    def __init__(self, train, path, shard, num_shards, T, image_size=64):
         super().__init__(path=path, T=T)
         self.split_path = self.path / f"video_{'train' if train else 'test'}.csv"
         self.cache_file(self.split_path)
         self.fnames = [line.rstrip('\n').split('/')[-1] for line in open(self.split_path, 'r').readlines() if '.pt' in line]
         self.fnames = self.fnames[shard::num_shards]
+        self.image_size = image_size ### Changed ###
         print(f"Loading {len(self.fnames)} files (Carla dataset).")
 
     def loaditem(self, path):
@@ -200,7 +201,11 @@ class CarlaDataset(BaseDataset):
         return self.path / self.fnames[idx]
 
     def postprocess_video(self, video):
-        return -1 + 2 * (video.permute(0, 3, 1, 2).float()/255)
+        video = video.permute(0, 3, 1, 2) ### Changed ###
+        image_resize = lambda x: Resize(self.image_size)(x)         ### Changed ###
+        image_centercrop = lambda x: CenterCrop(self.image_size)(x) ### Changed ###
+        video = th.stack([image_centercrop(image_resize(frame)) for frame in video]) ### Changed ###
+        return (video.float()/255) # -1 + 2 * (video.float()/255)
 
     def __len__(self):
         return len(self.fnames)
@@ -226,7 +231,7 @@ class GQNMazesDataset(BaseDataset):
         image_centercrop = lambda x: CenterCrop(self.image_size)(x) ### Changed ###
         byte_to_tensor = lambda x: ToTensor()(x)
         video = th.stack([image_centercrop(image_resize(byte_to_tensor(frame))) for frame in video]) ### Changed ###
-        video = 2 * video - 1
+        # video = 2 * video - 1
         return video
 
 
@@ -249,5 +254,5 @@ class MineRLDataset(BaseDataset):
         byte_to_tensor = lambda x: ToTensor()(x)
         
         video = th.stack([image_centercrop(image_resize(byte_to_tensor(frame))) for frame in video]) ### Changed ###
-        video = 2 * video - 1
+        # video = 2 * video - 1
         return video

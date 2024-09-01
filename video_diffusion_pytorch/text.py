@@ -15,19 +15,31 @@ MODEL = None
 TOKENIZER = None
 BERT_MODEL_DIM = 768
 
-def get_tokenizer():
-    global TOKENIZER
-    if not exists(TOKENIZER):
-        TOKENIZER = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-base-cased')
+def get_tokenizer(load_pretrained = False):
+    if load_pretrained:
+        global TOKENIZER
+        if not exists(TOKENIZER):
+            TOKENIZER = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-base-cased')
+    else:
+        try: ### TODO: refactor this ###
+            TOKENIZER = torch.load('data/bert-base-cased-tokenizer.pt')
+        except:
+            TOKENIZER = torch.load('bert-base-cased-tokenizer.pt')
     return TOKENIZER
 
-def get_bert():
-    global MODEL
-    if not exists(MODEL):
-        MODEL = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-base-cased')
+def get_bert(load_pretrained = False):
+    if load_pretrained:
+        if not exists(MODEL):
+            MODEL = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-base-cased')
+            if torch.cuda.is_available():
+                MODEL = MODEL.cuda()
+    else:
+        try: ### TODO: refactor this ###
+            MODEL = torch.load('data/bert-base-cased.pt')
+        except:
+            MODEL = torch.load('bert-base-cased.pt')
         if torch.cuda.is_available():
             MODEL = MODEL.cuda()
-
     return MODEL
 
 # tokenize
@@ -85,3 +97,10 @@ def bert_embed(
     denom = mask.sum(dim = 1)
     masked_mean =  numer / (denom + eps)
     return masked_mean
+
+if __name__ == "__main__":
+    tokenizer = get_tokenizer(load_pretrained=True)
+    model = get_bert(load_pretrained=True)
+    torch.save(model, 'bert-base-cased.pt')
+    torch.save(tokenizer, 'bert-base-cased-tokenizer.pt')
+    

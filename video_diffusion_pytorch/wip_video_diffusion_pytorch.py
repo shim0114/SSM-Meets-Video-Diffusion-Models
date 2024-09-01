@@ -5,6 +5,7 @@
 
 import math
 import copy
+import time
 import torch
 from torch import nn, einsum
 import torch.nn.functional as F
@@ -27,11 +28,18 @@ from rotary_embedding_torch import RotaryEmbedding
 
 from video_diffusion_pytorch.text import tokenize, bert_embed, BERT_MODEL_DIM
 from video_diffusion_pytorch.s4d import S4D ### Changed ###
-# from video_diffusion_pytorch.s4 import S4Block ### Changed ###
+try: ### TODO: Remove try-except block
+    from video_diffusion_pytorch.s6 import S6 ### Changed ###
+except:
+    print('mamba is not installed')
+    pass
 
 from video_diffusion_pytorch.long_video_datasets import MineRLDataset, GQNMazesDataset, CarlaDataset ### Changed ###
-
-# from s5 import S5, S5Block ### Changed ###
+try: ### TODO: Remove try-except block
+    from video_diffusion_pytorch.t2v_datasets import TextVideoDataset ### Changed ###
+except:
+    print('t2v_datasets is not installed')
+    pass
 
 import wandb ### Changed ###
 
@@ -412,96 +420,6 @@ class TemporalLinearAttention(nn.Module):
         out = rearrange(out, '... h n d -> ... n (h d)')
 
         return self.to_out(out)
-        
-
-### Changed ###
-class IdentityLayer(nn.Module):
-    def __init__(self):
-        super().__init__()
-    
-    def forward(
-        self,
-        x,
-        pos_bias = None,
-        focus_present_mask = None
-    ):
-        return x
-    
-### Changed ###
-class LSTM(nn.Module):
-    def __init__(
-        self, 
-        dim, 
-        hidden_dim, 
-        bidirectional = False, 
-        num_layers = 1, 
-        dropout = 0.
-    ):
-        super().__init__()
-        
-        self.lstm = nn.LSTM(
-            dim, 
-            hidden_dim, 
-            batch_first=True,
-            bidirectional=bidirectional,
-            num_layers=num_layers,
-            dropout=dropout)
-        self.fc = nn.Linear(hidden_dim * (2 if bidirectional else 1), dim)
-        # self.fc1 = nn.Linear(hidden_dim * (2 if bidirectional else 1), hidden_dim)
-        # self.fc2 = nn.Linear(hidden_dim, dim)
-        
-    def forward(
-        self, 
-        x, 
-        pos_bias = None, 
-        focus_present_mask = None
-    ):
-        device = x.device
-        
-        c0 = torch.zeros(self.lstm.num_layers * (2 if self.lstm.bidirectional else 1), x.shape[0], self.lstm.hidden_size, device=device)
-        h0 = torch.zeros(self.lstm.num_layers * (2 if self.lstm.bidirectional else 1), x.shape[0], self.lstm.hidden_size, device=device)
-        
-        # split out heads
-        x, _ = self.lstm(x, (h0, c0))
-        x = self.fc(F.gelu(x))
-        # x = self.fc1(F.gelu(x))
-        # x = self.fc2(F.gelu(x))
-        
-        return x
-
-# ### Changed ###
-# class S4Layer(nn.Module):
-#     def __init__(
-#         self,
-#         dim,
-#         hidden_dim,
-#         bidirectional = False,
-#         rotary_emb = None
-#     ):
-#         super().__init__()
-#         self.bidirectional = bidirectional
-
-#         self.s4 = S4(dim, hidden_dim, transposed=False)
-#         if bidirectional:
-#             self.s4_rev = S4(dim, hidden_dim, transposed=False)
-#         self.fc = nn.Linear(dim * (2 if bidirectional else 1), dim)
-    
-#     def forward(
-#         self,
-#         x,
-#         pos_bias = None,
-#         focus_present_mask = None
-#     ):
-#         device = x.device
-        
-#         # split out heads
-#         x_, _ = self.s4(x)
-#         if self.bidirectional:
-#             x_rev, _ = self.s4_rev(torch.flip(x, [1]))
-#             x_ = torch.cat((x_, torch.flip(x_rev, [1])), dim=-1)
-#         x = self.fc(x_)
-
-#         return x
 
 ### Changed ###
 class S4DLayer(nn.Module):
@@ -519,43 +437,33 @@ class S4DLayer(nn.Module):
         self.version = version
 
         # S4D settings 
-        if version in range(1, 16) or version == 20:
+        if version == 1: ### Mixing MLP ###
+            
+            if linear_dim is None:
+                raise ValueError('linear_dim must be provided for version 1')
+            
             self.s4d = S4D(dim, hidden_dim, transposed=False)
             if bidirectional:
                 self.s4d_rev = S4D(dim, hidden_dim, transposed=False)
-        elif version in range(16, 19) or version == 21:
-            self.s4d = S4D(dim, hidden_dim, transposed=False, output_glu=False)
-            if bidirectional:
-                self.s4d_rev = S4D(dim, hidden_dim, transposed=False, output_glu=False)
-        elif version == 19 or version == 22:
-            expand = 2
-            self.s4d = S4D(expand * dim, hidden_dim, transposed=False, output_glu=False)
-            if bidirectional:
-                self.s4d_rev = S4D(expand * dim, hidden_dim, transposed=False, output_glu=False)
+                
+            self.fc1 = nn.Linear(dim * (2 if bidirectional else 1), linear_dim) 
+            self.fc2 = nn.Linear(linear_dim, dim)   
             
-        # Linear settings 
-        if version == 6 or version == 7 or version == 13 or version == 15:
-            self.fc0 = nn.Linear(dim, dim)                                     # ver6 (addfc12.4) # ver7 (addfc12.5)
-        elif version == 16:                                                    # ver16
-            self.fc01 = nn.Linear(dim, linear_dim)                              
-            self.fc02 = nn.Linear(linear_dim, dim)                              
+        elif version == 2: ### Mixing GLU ###
+            
+            self.s4d = S4D(dim, hidden_dim, transposed=False, output_glu=True)
+            if bidirectional:
+                self.s4d_rev = S4D(dim, hidden_dim, transposed=False, output_glu=True)
         
-        if version == 2 or version == 4:
-            self.fc1 = nn.Linear(dim * (2 if bidirectional else 1), linear_dim) # ver2 (addfc12)
-            self.fc2 = nn.Linear(linear_dim, dim)                               # ver2 (addfc12)
-        elif version == 3 or version == 8 or version == 11 or version == 12 or version == 16:
-            self.fc1 = nn.Linear(dim, linear_dim)                               # ver3 (addfc12.1) # ver4 (addfc12.2)
-            self.fc2 = nn.Linear(linear_dim, dim)                               # ver3 (addfc12.1) # ver4 (addfc12.2)
-        elif version == 5 or version == 7:
-            self.fc1 = nn.Linear(dim * (2 if bidirectional else 1), dim)        # ver5 (addfc12.3) # ver7 (addfc12.5)
-        elif version == 14 or version == 15:
-            self.fc1 = nn.Linear(dim, dim)                                      # ver14 (addfc12.8) # ver15 (addfc12.9)
-        elif version == 20:
-            self.fc1 = nn.Linear(dim, dim * 2)                    
-            self.fc2 = nn.Linear(dim * 2, dim)                    
+        elif version == 10: ### GSS, BiGS ###
             
-        if version == 9 or version == 17:   # GSS or BiGS
-            self.fc_shortcut = nn.Linear(dim, 3 * dim)    
+            fc_expand = 3
+            
+            self.s4d = S4D(dim, hidden_dim, transposed=False)
+            if bidirectional:
+                self.s4d_rev = S4D(dim, hidden_dim, transposed=False)
+                
+            self.fc_shortcut = nn.Linear(dim, fc_expand * dim)    
                                       
             self.fc1 = nn.Linear(dim, dim)
             self.fc2 = nn.Linear(dim, dim)
@@ -564,33 +472,18 @@ class S4DLayer(nn.Module):
                 self.fc_rev1 = nn.Linear(dim, dim)
                 self.fc_rev2 = nn.Linear(dim, dim)
             
-            self.fc3 = nn.Linear(dim, 3 * dim)
+            self.fc3 = nn.Linear(dim, fc_expand * dim)
             
-            self.fc_out = nn.Linear(3 * dim, dim)
+            self.fc_out = nn.Linear(fc_expand * dim, dim)
+                
+        elif version == 20: ### Mamba, Vim ###
             
-        if version == 10:
-            self.fc_shortcut = nn.Linear(dim, 2 * dim)    
-                                      
-            self.fc1 = nn.Linear(dim, dim)
-            self.fc2 = nn.Linear(2 * dim, 2 * dim)
-            
-            self.fc_out = nn.Linear(2 * dim, dim)
-            
-        # if version == 18:
-        #     self.fc_qkv = nn.Linear(dim, 3 * dim) 
-            
-        #     d_conv = 4
-        #     self.conv = nn.Conv1d(in_channels=dim,
-        #                     out_channels=dim,
-        #                     kernel_size=d_conv,
-        #                     groups=dim,
-        #                     padding=d_conv - 1)
-            
-        #     self.fc_out = nn.Linear(dim, dim)
-            
-        if version == 19: # Mamba or Vim
             expand = 2
             d_conv = 4
+            
+            self.s4d = S4D(expand * dim, hidden_dim, transposed=False)
+            if bidirectional:
+                self.s4d_rev = S4D(expand * dim, hidden_dim, transposed=False)   
             
             self.fc_init = nn.Linear(dim, 2 * expand * dim) 
             
@@ -608,42 +501,9 @@ class S4DLayer(nn.Module):
                                     padding=d_conv - 1)
             
             self.fc_out = nn.Linear(dim * expand, dim)
-            
-        if version == 21: # GSS, BiGS with bigger MLP                                                       
-            self.fc_shortcut = nn.Linear(dim, linear_dim)    
-                                      
-            self.fc1 = nn.Linear(dim, dim)
-            self.fc2 = nn.Linear(dim, dim)
-            
-            if bidirectional:
-                self.fc_rev1 = nn.Linear(dim, dim)
-                self.fc_rev2 = nn.Linear(dim, dim)
-            
-            self.fc3 = nn.Linear(dim, linear_dim)
-            
-            self.fc_out = nn.Linear(linear_dim, dim)
-            
-        if version == 22: # Mamba, Vim with bigger MLP
-            expand = 2
-            d_conv = 4
-            
-            self.fc_init = nn.Linear(dim, 2 * expand * dim) 
-            
-            self.conv = nn.Conv1d(in_channels=dim * expand,
-                            out_channels=dim * expand,
-                            kernel_size=d_conv,
-                            groups=dim * expand,
-                            padding=d_conv - 1)
-            
-            if bidirectional:
-                self.conv_rev = nn.Conv1d(in_channels=dim * expand,
-                                    out_channels=dim * expand,
-                                    kernel_size=d_conv,
-                                    groups=dim * expand,
-                                    padding=d_conv - 1)
-            
-            self.fc_out_1 = nn.Linear(dim * expand, linear_dim)
-            self.fc_out_2 = nn.Linear(linear_dim, dim)
+                
+        else:
+            raise NotImplementedError()                                      
     
     def forward(
         self,
@@ -653,107 +513,26 @@ class S4DLayer(nn.Module):
     ):
         device = x.device
         
-        # split out heads
-        if self.version in range(1, 9) or self.version in range(11, 17) or self.version == 20:
-            if self.version == 6 or self.version == 7:
-                x = self.fc0(x)                          # ver6 (addfc12.4) # ver7 (addfc12.5)
-            elif self.version == 12:                       # ver12
-                x = self.fc1(x)                   
-                x = self.fc2(F.gelu(x))        
-            elif self.version == 13 or self.version == 15: # ver13 # ver15       
-                x = F.gelu(self.fc0(x))
-            elif self.version == 16:                       # ver16
-                x = self.fc01(x)
-                x = self.fc02(F.gelu(x))
-            elif self.version == 1 or self.version == 2 or self.version == 3 or self.version == 4 \
-            or self.version == 5 or self.version == 8 or self.version == 11 or self.version == 14 \
-            or self.version == 20:
-                pass
-            else:
-                raise NotImplementedError()
-                                 
+        if self.version == 1: ### Mixing MLP ###
             x_, _ = self.s4d(x)
+            
             if self.bidirectional:
                 x_rev, _ = self.s4d_rev(torch.flip(x, [1]))
-                if self.version == 1 or self.version == 3 or self.version == 6 or self.version == 8 \
-                or self.version == 11 or self.version == 12 or self.version == 13 or self.version ==14 \
-                or self.version == 15 or self.version == 16 or self.version == 20:
-                    x_ = x_ + torch.flip(x_rev, [1])      # ver1 (rmfc)    # ver3 (rmfc12.1)
-                elif self.version == 2 or self.version == 4 or self.version == 5 or self.version == 7:
-                    x_ = torch.cat((x_, torch.flip(x_rev, [1])), dim=-1)   # ver2 (addfc12)
-                else:
-                    raise NotImplementedError()
+                x_ = torch.cat((x_, torch.flip(x_rev, [1])), dim=-1)
             
-            if self.version == 1 or self.version == 6 or self.version == 12 or self.version == 13:
-                x = x_                                    # ver1 (rmfc) 
-            elif self.version == 2 or self.version == 3:
-                x = self.fc1(F.gelu(x_))                  # ver2 (addfc12) # ver3 (addfc12.1)
-                x = self.fc2(F.gelu(x))                   # ver2 (addfc12) # ver3 (addfc12.1)
-            elif self.version == 4 or self.version == 8 or self.version == 16 or self.version == 20:
-                x = self.fc1(x_)                          # ver4 (addfc12.2) # ver8 (addfc12.6)
-                x = self.fc2(F.gelu(x))                   # ver4 (addfc12.2) # ver8 (addfc12.6)
-            elif self.version == 5 or self.version == 7:
-                x = self.fc1(x_)                          # ver5 (addfc12.3)
-            elif self.version == 11:
-                x = self.fc1(x_)                          # ver11 (addfc12.7)
-                x = self.fc2(F.gelu(x))                   # ver11 (addfc12.7)
-                x = x + x_                                # ver11 (addfc12.7)
-            elif self.version == 14 or self.version == 15:
-                x = F.gelu(self.fc1(x_))                  # ver14 (addfc12.8) # ver15 (addfc12.9)
-            else:
-                raise NotImplementedError()
-                
-        elif self.version == 9: 
-            # shortcut
-            x_shortcut = self.fc_shortcut(x)
-            x_shortcut = F.gelu(x_shortcut)
+            x = self.fc1(F.gelu(x_))                  
+            x = self.fc2(F.gelu(x))     
             
-            # forward ssm
-            x_ = F.gelu(self.fc1(x))
-            x_, _ = self.s4d(x_)
-            x_ = self.fc2(x_)
-            
-            if self.bidirectional:
-                # backward ssm
-                x_rev = F.gelu(self.fc_rev1(torch.flip(x, [1])))
-                x_rev, _ = self.s4d_rev(x_rev)
-                x_rev = torch.flip(self.fc_rev2(x_rev), [1])
-            
-                # element-wise multiplication with ssms
-                x_ = x_ * x_rev
-                
-            x_ = self.fc3(x_)
-            x_ = F.gelu(x_)
-            
-            # element-wise multiplication with shortcut
-            x = x_shortcut * x_
-            x = self.fc_out(x)
-        
-        elif self.version == 10:
-            if not self.bidirectional:
-                raise ValueError('S4DLayer version 10 must be bidirectional')
-            
-            # shortcut
-            x_shortcut = self.fc_shortcut(x)
-            x_shortcut = F.gelu(x_shortcut)
-            
-            # ssms
-            x = F.gelu(self.fc1(x))
-            
-            # forward ssm
+        elif self.version == 2: ### Mixing GLU ###
             x_, _ = self.s4d(x)
-            # backward ssm
-            x_rev, _ = self.s4d_rev(torch.flip(x, [1]))
             
-            # ssms concat
-            x_ = torch.cat((x_, torch.flip(x_rev, [1])), dim=-1)
-            x_ = F.gelu(self.fc2(x_))
+            if self.bidirectional:
+                x_rev, _ = self.s4d_rev(torch.flip(x, [1]))
+                x_ = x_ + torch.flip(x_rev, [1])
+                
+            x = x_            
             
-            # element-wise multiplication with shortcut
-            x = x_shortcut * x_
-            x = self.fc_out(x)
-            
-        elif self.version == 17 or self.version == 21: ### GSS, BiGS ###
+        elif self.version == 10: ### GSS, BiGS ###
             # shortcut
             x_shortcut = self.fc_shortcut(x)
             x_shortcut = F.gelu(x_shortcut)
@@ -779,25 +558,7 @@ class S4DLayer(nn.Module):
             x = x_shortcut * x_
             x = self.fc_out(x)
             
-        # elif self.version == 18: ### H3 ###
-        #     if self.bidirectional:
-        #         raise ValueError('S4DLayer version 18 must be unidirectional')
-        #     num_frames = x.shape[1]
-            
-        #     x_q, x_k, x_v = self.fc_qkv(x).chunk(3, dim=-1)
-
-        #     x_k = x_k.transpose(2,1)
-        #     x_k = self.conv(x_k)[..., :num_frames]
-        #     x_k = x_k.transpose(2,1)
-            
-        #     x_prod = x_k * x_v
-        #     x_ssm, _ = self.s4d(x_prod)
-            
-        #     x_out = x_q * x_ssm
-            
-        #     x = self.fc_out(x_out)
-            
-        elif self.version == 19: ### Mamba, Bidirectional Mamba ###
+        elif self.version == 20: ### Mamba, Vim ###
             num_frames = x.shape[1]
             
             x_, x_shortcut = self.fc_init(x).chunk(2, dim=-1)
@@ -828,7 +589,145 @@ class S4DLayer(nn.Module):
             
             x = self.fc_out(x_out)
             
-        elif self.version == 22: ### Mamba, Bidirectional Mamba ###
+        return x
+
+    
+# ### Changed ###
+class S6Layer(nn.Module):
+    def __init__(
+        self,
+        dim,
+        hidden_dim,
+        linear_dim,
+        version,
+        bidirectional = False,
+        rotary_emb = None
+    ):
+        super().__init__()
+        self.bidirectional = bidirectional
+        self.version = version
+
+        if version == 1: ### Mixing MLP ###
+            
+            if linear_dim is None:
+                raise ValueError('linear_dim must be provided for version 1')
+            
+            self.s6 = S6(d_model=dim, d_state=hidden_dim) 
+            if bidirectional:
+                self.s6_rev = S6(d_model=dim, d_state=hidden_dim)
+                
+            self.fc1 = nn.Linear(dim * (2 if bidirectional else 1), linear_dim) 
+            self.fc2 = nn.Linear(linear_dim, dim) 
+            
+        elif version == 2: ### Mixing GLU ###
+            
+            self.s6 = S6(d_model=dim, d_state=hidden_dim, output_glu=True)
+            if bidirectional:
+                self.s6_rev = S6(d_model=dim, d_state=hidden_dim, output_glu=True)
+        
+        elif version == 10: ### GSS, BiGS ###
+            
+            self.s6 = S6(d_model=dim, d_state=hidden_dim) 
+            if bidirectional:
+                self.s6_rev = S6(d_model=dim, d_state=hidden_dim)
+                
+            self.fc_shortcut = nn.Linear(dim, linear_dim)    
+                                      
+            self.fc1 = nn.Linear(dim, dim)
+            self.fc2 = nn.Linear(dim, dim)
+            
+            if bidirectional:
+                self.fc_rev1 = nn.Linear(dim, dim)
+                self.fc_rev2 = nn.Linear(dim, dim)
+            
+            self.fc3 = nn.Linear(dim, linear_dim)
+            
+            self.fc_out = nn.Linear(linear_dim, dim)
+            
+        elif version == 20: ### Mamba, Vim ###
+            expand = 2
+            d_conv = 4
+            
+            self.s6 = S6(d_model=expand * dim, d_state=hidden_dim) 
+            if bidirectional:
+                self.s6_rev = S6(d_model=expand * dim, d_state=hidden_dim)        
+            
+            self.fc_init = nn.Linear(dim, 2 * expand * dim) 
+            
+            self.conv = nn.Conv1d(in_channels=dim * expand,
+                            out_channels=dim * expand,
+                            kernel_size=d_conv,
+                            groups=dim * expand,
+                            padding=d_conv - 1)
+            
+            if bidirectional:
+                self.conv_rev = nn.Conv1d(in_channels=dim * expand,
+                                    out_channels=dim * expand,
+                                    kernel_size=d_conv,
+                                    groups=dim * expand,
+                                    padding=d_conv - 1)
+            
+            self.fc_out = nn.Linear(dim * expand, dim)     
+        
+        else:
+            raise NotImplementedError()               
+
+    
+    def forward(
+        self,
+        x,
+        pos_bias = None,
+        focus_present_mask = None
+    ):
+        device = x.device
+        
+        # split out heads
+        if self.version == 1:  
+            x_, _ = self.s6(x)
+            
+            if self.bidirectional:
+                x_rev, _ = self.s6_rev(torch.flip(x, [1]))
+                x_ = torch.cat((x_, torch.flip(x_rev, [1])), dim=-1)   
+            
+            x = self.fc1(F.gelu(x_))                  
+            x = self.fc2(F.gelu(x))   
+        
+        if self.version == 2:  
+            x_, _ = self.s6(x)
+            
+            if self.bidirectional:
+                x_rev, _ = self.s6_rev(torch.flip(x, [1]))
+                x_ = x_ + torch.flip(x_rev, [1])  
+                          
+            x = x_             
+            
+        elif self.version == 10: ### GSS, BiGS ###
+            # shortcut
+            x_shortcut = self.fc_shortcut(x)
+            x_shortcut = F.gelu(x_shortcut)
+            
+            # forward ssm
+            x_ = F.gelu(self.fc1(x))
+            x_, _ = self.s6(x_)
+            x_ = self.fc2(x_)
+            
+            if self.bidirectional:
+                # backward ssm
+                x_rev = F.gelu(self.fc_rev1(torch.flip(x, [1])))
+                x_rev, _ = self.s6_rev(x_rev)
+                x_rev = torch.flip(self.fc_rev2(x_rev), [1])
+            
+                # element-wise multiplication with ssms
+                x_ = x_ * x_rev
+                
+            x_ = self.fc3(x_)
+            x_ = F.gelu(x_)
+            
+            # element-wise multiplication with shortcut
+            x = x_shortcut * x_
+            x = self.fc_out(x)
+            
+        elif self.version == 20: ### Mamba, Bidirectional Mamba ###
             num_frames = x.shape[1]
             
             x_, x_shortcut = self.fc_init(x).chunk(2, dim=-1)
@@ -837,7 +736,7 @@ class S4DLayer(nn.Module):
             x_shifted = F.silu(self.conv(x_in)[..., :num_frames])
             x_shifted = x_shifted.transpose(2, 1)
             
-            x_ssm, _ = self.s4d(x_shifted)
+            x_ssm, _ = self.s6(x_shifted)
             
             x_out = x_ssm * F.silu(x_shortcut)
             
@@ -848,7 +747,7 @@ class S4DLayer(nn.Module):
                 x_shifted_rev = F.silu(self.conv_rev(x_in_rev)[..., :num_frames])
                 x_shifted_rev = x_shifted_rev.transpose(2, 1)
                 
-                x_ssm_rev, _ = self.s4d_rev(x_shifted_rev)
+                x_ssm_rev, _ = self.s6_rev(x_shifted_rev)
                 
                 x_ssm_rev = torch.flip(x_ssm_rev, [1])
                 
@@ -857,46 +756,9 @@ class S4DLayer(nn.Module):
                 # element-wise summation with ssms
                 x_out = x_out + x_out_rev
             
-            x = F.silu(self.fc_out_1(x_out))
-            x = self.fc_out_2(x)
+            x = self.fc_out(x_out)
 
         return x
-    
-### Changed ###
-# class S5Layer(nn.Module):
-#     def __init__(
-#         self,
-#         dim,
-#         hidden_dim,
-#         bidirectional = False,
-#         rotary_emb = None
-#     ):
-#         super().__init__()
-#         self.bidirectional = bidirectional
-
-#         self.s5 = S5(dim, hidden_dim)
-#         if bidirectional:
-#             self.s5_rev = S5(dim, hidden_dim)
-#         self.fc = nn.Linear(dim * (2 if bidirectional else 1), dim)
-    
-#     def forward(
-#         self,
-#         x,
-#         pos_bias = None,
-#         focus_present_mask = None
-#     ):
-#         device = x.device
-        
-#         # split out heads
-#         x_ = self.s5(x)
-#         if self.bidirectional:
-#             x_rev = self.s5_rev(torch.flip(x, [1]))
-#             x_ = torch.cat((x_, torch.flip(x_rev, [1])), dim=-1)
-#         x = self.fc(x_)
-        
-#         return x
-
-# model
 
 class Unet3D(nn.Module):
     def __init__(
@@ -909,8 +771,9 @@ class Unet3D(nn.Module):
         timeemb_linears = 2,
         attn_heads = 8, 
         attn_dim_head = 64, ### Changed ### 32 -> 64
-        s4d_hidden_dim = None, ### Changed ### 
-        s4d_linear_dim = None, ### Changed ###
+        ssm_hidden_dim = None, ### Changed ### 
+        ssm_linear_dim = None, ### Changed ###
+        ssm_version = None, ### Changed ###
         use_bert_text_cond = False,
         init_dim = None, 
         init_kernel_size = 7,
@@ -918,7 +781,6 @@ class Unet3D(nn.Module):
         block_type = 'resnet',
         resnet_groups = 8,
         temporal_arch = 'attn',
-        s4d_version = None, ### Changed ###
     ):
         super().__init__()
         self.channels = channels
@@ -930,38 +792,27 @@ class Unet3D(nn.Module):
         ### Changed ###
         if temporal_arch == 'attn':
             temporal_layer = lambda dim: EinopsToAndFrom('b c f h w', 'b (h w) f c', Attention(dim, heads = attn_heads, dim_head = attn_dim_head, rotary_emb = rotary_emb)) 
+        
         elif temporal_arch == 'l-attn':
             temporal_layer = lambda dim: EinopsToAndFrom('b c f h w', 'b (h w) f c', TemporalLinearAttention(dim, heads = attn_heads, dim_head = attn_dim_head, rotary_emb = rotary_emb))
-        elif temporal_arch == 'nan':
-            temporal_layer = lambda dim: IdentityLayer()
-        elif temporal_arch == 'lstm' or temporal_arch == 'bi-lstm':
-            if temporal_arch == 'lstm':
-                temporal_layer = lambda dim: EinopsToAndFrom('b c f h w', '(b h w) f c', LSTM(dim, attn_dim_head*attn_heads))
-            else:
-                temporal_layer = lambda dim: EinopsToAndFrom('b c f h w', '(b h w) f c', LSTM(dim, attn_dim_head*attn_heads, bidirectional=True))
-        # elif temporal_arch == 's4' or temporal_arch == 'bi-s4':
-        #     if temporal_arch == 's4': 
-        #         temporal_layer = lambda dim: EinopsToAndFrom('b c f h w', '(b h w) f c', S4Layer(dim, attn_dim_head*attn_heads)) 
-        #     else:
-        #         temporal_layer = lambda dim: EinopsToAndFrom('b c f h w', '(b h w) f c', S4Layer(dim, attn_dim_head*attn_heads, bidirectional=True))
-        elif temporal_arch == 's4d' or temporal_arch == 'bi-s4d':
-            if s4d_hidden_dim is None:
-                s4d_hidden_dim = attn_dim_head*attn_heads
-            if s4d_linear_dim is None:
-                s4d_linear_dim = attn_dim_head*attn_heads
-                
-            if s4d_version == None:
-                raise ValueError('s4d_version not specified')
 
+        elif temporal_arch == 's4d' or temporal_arch == 'bi-s4d':
+            if ssm_version == None:
+                raise ValueError('ssm layer version not specified')
             if temporal_arch == 's4d': 
-                temporal_layer = lambda dim: EinopsToAndFrom('b c f h w', '(b h w) f c', S4DLayer(dim, s4d_hidden_dim, s4d_linear_dim, version=s4d_version))
+                temporal_layer = lambda dim: EinopsToAndFrom('b c f h w', '(b h w) f c', S4DLayer(dim, ssm_hidden_dim, ssm_linear_dim, version=ssm_version))
             else:
-                temporal_layer = lambda dim: EinopsToAndFrom('b c f h w', '(b h w) f c', S4DLayer(dim, s4d_hidden_dim, s4d_linear_dim, bidirectional=True, version=s4d_version))
-        # elif temporal_arch == 's5' or temporal_arch == 'bi-s5':
-            # if temporal_arch == 's5': 
-            #     temporal_layer = lambda dim: EinopsToAndFrom('b c f h w', '(b h w) f c', S5Layer(dim, attn_dim_head*attn_heads)) 
-            # else:
-            #     temporal_layer = lambda dim: EinopsToAndFrom('b c f h w', '(b h w) f c', S5Layer(dim, attn_dim_head*attn_heads, bidirectional=True))
+                temporal_layer = lambda dim: EinopsToAndFrom('b c f h w', '(b h w) f c', S4DLayer(dim, ssm_hidden_dim, ssm_linear_dim, bidirectional=True, version=ssm_version))
+                
+        elif temporal_arch == 's6' or temporal_arch == 'bi-s6':
+            if ssm_version == None:
+                raise ValueError('ssm layer version not specified')
+
+            if temporal_arch == 's6': 
+                temporal_layer = lambda dim: EinopsToAndFrom('b c f h w', '(b h w) f c', S6Layer(dim, ssm_hidden_dim, ssm_linear_dim, version=ssm_version))
+            else:
+                temporal_layer = lambda dim: EinopsToAndFrom('b c f h w', '(b h w) f c', S6Layer(dim, ssm_hidden_dim, ssm_linear_dim, bidirectional=True, version=ssm_version))
+                
         else:
             raise ValueError('temporal_layer not implemented')
             
@@ -1077,7 +928,7 @@ class Unet3D(nn.Module):
         x,
         time,
         cond = None,
-        null_cond_prob = 0.,
+        null_cond_prob = 0.5, ### Changed ###
         focus_present_mask = None,
         prob_focus_present = 0.  # probability at which a given batch sample will focus on the present (0. is all off, 1. is completely arrested attention across time)
     ):
@@ -1344,7 +1195,11 @@ class GaussianDiffusion(nn.Module):
         b, device, img_size, = x.shape[0], x.device, self.image_size
         check_shape(x, 'b c f h w', c = self.channels, f = self.num_frames, h = img_size, w = img_size)
         t = torch.randint(0, self.num_timesteps, (b,), device=device).long()
+        # print(x.max(), x.min())
         x = normalize_img(x)
+        # print(x.max(), x.min())
+        # import sys
+        # sys.exit()
         return self.p_losses(x, t, *args, **kwargs)
 
 # trainer class
@@ -1484,8 +1339,10 @@ class Trainer(object):
         dataset,
         folder,
         *,
-        ema_decay = 0.995,
+        ema_decay = 0.9999, ### Changed ### 0.995 -> 0.9999
         num_frames = 16,
+        use_cond = False, ### Changed ###
+        cond_folder = None, ### Changed ###
         train_batch_size = 32,
         train_lr = 1e-4,
         beta1 = 0.9,
@@ -1493,8 +1350,8 @@ class Trainer(object):
         train_num_steps = 100000,
         gradient_accumulate_every = 2,
         amp = False,
-        step_start_ema = 2000,
-        update_ema_every = 10,
+        step_start_ema = 0, ### Changed ### 2000 -> 0
+        update_ema_every = 1, ### Changed ### 10 -> 1
         save_and_sample_every = 1000,
         results_folder = './results',
         num_sample_rows = 2, ### Changed ###
@@ -1558,13 +1415,51 @@ class Trainer(object):
             )
             self.ds = data.ConcatDataset([ds_train, ds_test])
         elif dataset == 'minerl':
-            self.ds = MineRLDataset(
-                path=folder, 
+            ds_train = MineRLDataset(
+                path=folder + '/train', 
                 shard=0, 
                 num_shards=1, 
                 T=num_frames,
                 image_size = image_size
             )
+            ds_test = MineRLDataset(
+                path=folder + '/test', 
+                shard=0, 
+                num_shards=1, 
+                T=num_frames,
+                image_size = image_size
+            )
+            self.ds = data.ConcatDataset([ds_train, ds_test])
+        elif dataset == 'gqn':
+            ds_train = GQNMazesDataset(
+                path=folder + '/train',  
+                shard=0, 
+                num_shards=1, 
+                T=num_frames,
+                image_size=image_size)
+            ds_test = GQNMazesDataset(
+                path=folder + '/test',
+                shard=0,
+                num_shards=1,
+                T=num_frames,
+                image_size=image_size)
+            self.ds = data.ConcatDataset([ds_train, ds_test])
+        elif dataset == 'carla':
+            ds_train = CarlaDataset(
+                train=True,
+                path=folder, 
+                shard=0, 
+                num_shards=1, 
+                T=num_frames,
+                image_size=image_size)
+            ds_test = CarlaDataset(
+                train=False,
+                path=folder, 
+                shard=0, 
+                num_shards=1, 
+                T=num_frames,
+                image_size=image_size)
+            self.ds = data.ConcatDataset([ds_train, ds_test])
         elif dataset == 'gqn-mazes':
             self.ds = GQNMazesDataset(
                 path=folder, 
@@ -1572,6 +1467,17 @@ class Trainer(object):
                 num_shards=1, 
                 T=num_frames,
                 image_size=image_size)
+        elif dataset == 'msrvtt':
+            self.ds = TextVideoDataset(
+                annotations_file=cond_folder, 
+                root_dir=folder, 
+                transform=T.Compose([
+                T.Lambda(lambda x: x / 255.),
+                T.Lambda(lambda x: x.permute(3, 0, 1, 2)),
+                T.Resize(image_size),
+                T.CenterCrop(image_size),
+                ]),
+                frame_count=num_frames)
         else:
             raise ValueError('dataset not implemented')
 
@@ -1579,18 +1485,20 @@ class Trainer(object):
         assert len(self.ds) > 0, 'need to have at least 1 video to start training (although 1 is not great, try 100k)'
 
         ### Changed ###
-        if dataset == 'movingmnist':
-            self.dl = cycle(data.DataLoader(self.ds, batch_size = train_batch_size, shuffle=True, pin_memory=True, drop_last=True))
-        elif dataset == 'ucf101-all':
+        if dataset == 'ucf101-all':
             self.dl = cycle(data.DataLoader(self.ds, batch_size = train_batch_size, shuffle=True, pin_memory=True, drop_last=True, collate_fn=custom_video_collate_fn))
-        elif dataset == 'minerl':
+        elif dataset == 'minerl' or dataset == 'gqn' or dataset == 'carla':
             self.dl = cycle(data.DataLoader(self.ds, batch_size = train_batch_size, shuffle=True, pin_memory=True, drop_last=True))
-        elif dataset == 'gqn-mazes':
+        # elif dataset == 'gqn-mazes':
+        #     self.dl = cycle(data.DataLoader(self.ds, batch_size = train_batch_size, shuffle=True, pin_memory=True, drop_last=True))
+        elif dataset == 'msrvtt':
             self.dl = cycle(data.DataLoader(self.ds, batch_size = train_batch_size, shuffle=True, pin_memory=True, drop_last=True))
         self.opt = Adam(diffusion_model.parameters(), lr = train_lr, betas=(beta1, beta2)) ### Changed ###
         # self.opt = Adam(diffusion_model.module.parameters(), lr = train_lr) ### Changed ### # for DP (new version)
 
         self.step = 0
+        
+        self.use_cond = use_cond ### Changed ###
 
         self.amp = amp
         self.scaler = GradScaler(enabled = amp)
@@ -1650,14 +1558,20 @@ class Trainer(object):
 
         while self.step < self.train_num_steps:
             for i in range(self.gradient_accumulate_every):
-                if self.dataset == 'ucf101-all' or self.dataset == 'movingmnist':
+                if self.dataset == 'ucf101-all':
                     data = next(self.dl).cuda()
+                elif self.dataset == 'msrvtt':
+                    sample = next(self.dl)
+                    data = sample['video'].cuda()
+                    caption = sample['caption']
                 else:
                     data = next(self.dl)[0].permute(0, 2, 1, 3, 4).cuda()
-
                 with autocast(enabled = self.amp):
+                    if not self.use_cond: ### Changed ###
+                        caption = None
                     loss = self.model(
                         data,
+                        cond = caption,
                         prob_focus_present = prob_focus_present,
                         focus_present_mask = focus_present_mask
                     )
@@ -1684,7 +1598,17 @@ class Trainer(object):
                 num_samples = self.num_sample_rows ** 2
                 batches = num_to_groups(num_samples, self.batch_size//self.num_gpus) ### Changed ###
 
-                all_videos_list = list(map(lambda n: self.ema_model.sample(batch_size=n), batches))
+                # all_videos_list = list(map(lambda n: self.ema_model.sample(batch_size=n), batches))
+                all_videos_list = []
+                execution_times = []
+
+                for n in batches:
+                    start_time = time.time()
+                    video = self.ema_model.sample(batch_size=n)
+                    end_time = time.time()
+                    
+                    all_videos_list.append(video)
+                    execution_times.append(end_time - start_time)
                 all_videos_list = torch.cat(all_videos_list, dim = 0)
 
                 all_videos_list = F.pad(all_videos_list, (2, 2, 2, 2))
@@ -1692,7 +1616,7 @@ class Trainer(object):
                 one_gif = rearrange(all_videos_list, '(i j) c f h w -> c f (i h) (j w)', i = self.num_sample_rows)
                 video_path = str(self.results_folder / str(f'{milestone}.gif'))
                 video_tensor_to_gif(one_gif, video_path)
-                log = {**log, self.dataset + '/sample': wandb.Image(video_path)} ### Changed ###
+                log = {**log, self.dataset + '/sample': wandb.Image(video_path), self.dataset + '/sample time': sum(execution_times)/len(execution_times)} ### Changed ###
                 self.save(milestone) 
 
             log_fn(log)

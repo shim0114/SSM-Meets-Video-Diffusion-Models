@@ -156,7 +156,7 @@ class S4DKernel(nn.Module):
 
 
 class S4D(nn.Module):
-    def __init__(self, d_model, d_state=64, dropout=0.0, transposed=True, output_glu=True, **kernel_args): ### Changed ###
+    def __init__(self, d_model, d_state=64, dropout=0.0, transposed=True, output_glu=False, **kernel_args): ### Changed ###
         super().__init__()
 
         self.h = d_model
@@ -205,3 +205,16 @@ class S4D(nn.Module):
             
         if not self.transposed: y = y.transpose(-1, -2)
         return y, None # Return a dummy state to satisfy this repo's interface, but this can be modified
+
+
+if __name__ == "__main__":
+    from torch.autograd import profiler as profiler
+    # Test the code with a simple example
+    model = S4D(d_model=1024, d_state=16, transposed=False).cuda()
+    hidden_states = torch.randn(4096, 16, 1024).cuda()
+    with profiler.profile(use_cuda=True) as prof:
+        for _ in range(10):
+            output, _ = model(hidden_states)
+        torch.sum((output - torch.randn(4096, 16, 1024).cuda())).backward()
+    print(output.shape)
+    print(prof.key_averages().table(sort_by="cuda_time_total"))

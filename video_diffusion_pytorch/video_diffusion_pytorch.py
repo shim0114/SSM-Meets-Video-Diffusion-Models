@@ -5,6 +5,7 @@
 
 import math
 import copy
+import time
 import torch
 from torch import nn, einsum
 import torch.nn.functional as F
@@ -997,7 +998,18 @@ class Trainer(object):
                 num_samples = self.num_sample_rows ** 2
                 batches = num_to_groups(num_samples, self.batch_size)
 
-                all_videos_list = list(map(lambda n: self.ema_model.sample(batch_size=n), batches))
+                # all_videos_list = list(map(lambda n: self.ema_model.sample(batch_size=n), batches))
+                all_videos_list = []
+                execution_times = []
+
+                for n in batches:
+                    start_time = time.time()
+                    video = self.ema_model.sample(batch_size=n)
+                    end_time = time.time()
+                    
+                    all_videos_list.append(video)
+                    execution_times.append(end_time - start_time)
+                    
                 all_videos_list = torch.cat(all_videos_list, dim = 0)
 
                 all_videos_list = F.pad(all_videos_list, (2, 2, 2, 2))
@@ -1005,7 +1017,7 @@ class Trainer(object):
                 one_gif = rearrange(all_videos_list, '(i j) c f h w -> c f (i h) (j w)', i = self.num_sample_rows)
                 video_path = str(self.results_folder / str(f'{milestone}.gif'))
                 video_tensor_to_gif(one_gif, video_path)
-                log = {**log, 'sample': wandb.Image(video_path)} ### Changed ###
+                log = {**log, 'sample': wandb.Image(video_path), 'sample time': sum(execution_times)/len(execution_times)} ### Changed ###
                 self.save(milestone) 
 
             log_fn(log)
