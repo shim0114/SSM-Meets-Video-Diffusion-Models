@@ -2,17 +2,14 @@
 
 "SSM Meets Video Diffusion Models: Efficient Long-Term Video Generation with Selective State Spaces" [[Paper]](https://arxiv.org/abs/2403.07711)
 
-![Image1](images/figure1.png)
+![Image1](images/Figure1.png)
+
+![MineRL](images/figure4.png)
 
 
-## Device Details
-| Dataset          | UCF101         | UCF101         | MineRL         | MineRL         | MineRL         |
-|------------------|----------------|----------------|----------------|----------------|----------------|
-| **# of Frames**  | 16             | 16             | 64             | 200            | 400            |
-| **Resolution**   | $32 \times 32$ | $64 \times 64$ | $32 \times 32$ | $32 \times 32$ | $32 \times 32$ |
-| **Training steps** | 92k | 106k | 174k | 255k | 246k |
-| **GPUs** | V100 $\times 4$ | A100 $\times 8$ | V100 $\times 4$ | A100 $\times 8$ | A100 $\times 8$ |
-| **Training Time** | 72 hours | 120 hours | 72 hours | 100 hours | 120 hours |
+## Devices
+We use NVIDIA A100 $\times 8$ for training.  
+All models were trained for 100k steps, and training for all configurations in the paper was completed within four days.
 
 ## Settings
 Please use `./Dockerfile` to build docker image or install python libraries specified in this dockerfile.
@@ -20,16 +17,15 @@ Please use `./Dockerfile` to build docker image or install python libraries spec
 ## Run Experimental Codes
 
 ### Downloading Datasets
-#### UCF101
-1. Please follow the commands shown in `./dl_ucf101.ipynb` to download datasets.
-2.  Specify `ucf101-all` as `--dataset`, and `.` as `--folder`.
-
 #### MineRL Navigate
 1. Execute a following python code.
 ```
 python dl_mine_rl.py
 ```
 2. Specify `minerl` as `--dataset`, and `minerl_navigate-torch` as `--folder`.
+
+#### GQN-Mazes
+
 
 ### Training
 ```
