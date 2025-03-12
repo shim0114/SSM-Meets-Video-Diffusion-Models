@@ -1,6 +1,6 @@
 # SSM-Meets-Video-Diffusion-Models
 
-"SSM Meets Video Diffusion Models: Efficient Long-Term Video Generation with Selective State Spaces" [[Paper]](https://arxiv.org/abs/2403.07711)
+"SSM Meets Video Diffusion Models: Efficient Long-Term Video Generation with Structured State Spaces" 
 
 ![Image1](images/Figure1.png)
 
